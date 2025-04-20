@@ -100,7 +100,7 @@ if user_logged_in:
     # Logo nella prima colonna
     with row1_cols[0]:
         try:
-            logo = Image.open('attached_assets/MySaveDCLogo.png')
+            logo = Image.open('assets/logo.png')
             st.image(logo, use_container_width=True)
         except Exception as e:
             st.write(f"Logo non trovato: {e}")
@@ -227,7 +227,7 @@ else:
     
     # Mostra il logo
     try:
-        logo = Image.open('attached_assets/MySaveDCLogo.png')
+        logo = Image.open('assets/logo.png')
         st.image(logo, width=300)
     except Exception as e:
         st.title("My $av€ DC")
