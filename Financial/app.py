@@ -28,17 +28,39 @@ def get_logo():
     """
     Restituisce il logo come immagine PIL, usando la versione base64 incorporata
     """
-    try:
-        # Prima prova a caricare il file dal percorso
-        return Image.open('assets/MySaveDCLogo.png')
-    except Exception:
+    # Non restituiamo l'immagine direttamente, ma i bytes
+    logo_bytes = None
+    
+    # Prova prima a caricare l'immagine da file
+    paths_to_try = [
+        'assets/MySaveDCLogo.png',
+        'attached_assets/MySaveDCLogo.png',
+        './MySaveDCLogo.png'
+    ]
+    
+    for path in paths_to_try:
         try:
-            # Se non funziona, usa la versione base64
-            binary_data = base64.b64decode(LOGO_BASE64)
-            return Image.open(io.BytesIO(binary_data))
+            with open(path, 'rb') as f:
+                logo_bytes = f.read()
+                break
         except Exception:
-            # Se anche questo fallisce, restituisci None
+            continue
+    
+    # Se non è stato trovato il file, prova con base64
+    if logo_bytes is None:
+        try:
+            # Rimuovi spazi e newline dal base64
+            clean_base64 = LOGO_BASE64.strip().replace('\n', '')
+            logo_bytes = base64.b64decode(clean_base64)
+        except Exception:
+            # Se fallisce anche questo, niente logo
             return None
+    
+    # Converti i bytes in un'immagine PIL
+    try:
+        return Image.open(io.BytesIO(logo_bytes))
+    except Exception:
+        return None
 
 # Ottimizza layout con spazi adeguati - approccio più semplice
 st.markdown("""
