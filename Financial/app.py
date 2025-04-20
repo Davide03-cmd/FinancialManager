@@ -227,7 +227,7 @@ else:
     
     # Mostra il logo
     try:
-        logo = Image.open('assets/MySaveDCLogo.png')
+        logo = Image.open('financial/assets/MySaveDCLogo.png')
         st.image(logo, width=300)
     except Exception as e:
         st.title("My $av€ DC")
