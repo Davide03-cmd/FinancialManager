@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 from utils.data_manager import delete_product, duplicate_product, load_data
 from components.inline_edit_form import render_inline_edit_form
+from components.update_liquid_form import render_update_liquid_form
+from utils.formatting import format_currency, format_number, format_percentage
 
 def render_product_list(df):
     """
@@ -28,12 +30,12 @@ def render_product_list(df):
     if 'id' in display_df.columns:
         display_df = display_df.drop(columns=['id'])
     
-    # Format numeric columns
+    # Format numeric columns using Italian format
     if 'capitale_investito' in display_df.columns:
-        display_df['capitale_investito'] = display_df['capitale_investito'].apply(lambda x: f"{x:,.2f} €")
+        display_df['capitale_investito'] = display_df['capitale_investito'].apply(format_currency)
     
     if 'capitale_finale' in display_df.columns:
-        display_df['capitale_finale'] = display_df['capitale_finale'].apply(lambda x: f"{x:,.2f} €")
+        display_df['capitale_finale'] = display_df['capitale_finale'].apply(format_currency)
     
     # Format dates
     if 'data_scadenza' in display_df.columns:
@@ -131,6 +133,39 @@ def render_product_list(df):
     # Buttons for actions below the table
     st.subheader("Modifica Patrimonio")
     
+    # Inizializza gli stati per le varie modalità se non esistono
+    if 'update_liquid_mode' not in st.session_state:
+        st.session_state.update_liquid_mode = False
+        st.session_state.update_liquid_product_id = None
+    
+    # Se siamo in modalità aggiornamento prodotto liquido
+    if st.session_state.update_liquid_mode and st.session_state.update_liquid_product_id is not None:
+        st.divider()
+        
+        # Funzione per annullare l'aggiornamento
+        def cancel_update_liquid():
+            st.session_state.update_liquid_mode = False
+            st.session_state.update_liquid_product_id = None
+            st.rerun()
+        
+        # Mostra il form di aggiornamento e verifica se l'aggiornamento è avvenuto
+        if render_update_liquid_form(df, st.session_state.update_liquid_product_id):
+            # Ricarica i dati aggiornati
+            updated_df = load_data()
+            st.session_state.update_liquid_mode = False
+            st.session_state.update_liquid_product_id = None
+            st.session_state.show_success_message = True
+            st.session_state.success_message = "✅ Valore aggiornato con successo!"
+            st.session_state.active_tab = "list"  # Assicurati di restare nella tab "Lista Prodotti"
+            st.rerun()
+        
+        # Pulsante per annullare
+        if st.button("❌ Annulla e torna alla lista", key="cancel_update_liquid"):
+            cancel_update_liquid()
+            
+        # Non mostrare le altre opzioni se siamo in modalità aggiornamento
+        return
+        
     # Se siamo in modalità modifica in linea, mostra il form di modifica
     if st.session_state.inline_edit_mode and st.session_state.inline_edit_product_id is not None:
         st.divider()
@@ -169,9 +204,20 @@ def render_product_list(df):
         product_id = id_mapping[selected_product_idx]
         product_name = filtered_df.loc[selected_product_idx, 'Nome']
     
-    # Crea tre pulsanti in una riga
-    col1, col2, col3 = st.columns(3)
+    # Determina se il prodotto selezionato è liquido
+    is_liquid_product = False
+    if selected_product_idx is not None:
+        vincolo = filtered_df.loc[selected_product_idx, 'Vincolo'] if 'Vincolo' in filtered_df.columns else ""
+        is_liquid_product = (vincolo == 'Liquido')
     
+    # Crea un layout con 2 o 3 colonne, a seconda se il prodotto è liquido
+    if is_liquid_product:
+        # Per prodotti liquidi, mostra 4 pulsanti
+        col1, col2, col3, col4 = st.columns(4)
+    else:
+        # Per altri prodotti, mostra 3 pulsanti
+        col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
+        
     with col1:
         edit_button = st.button(
             "✏️ Modifica Patrimonio", 
@@ -187,73 +233,128 @@ def render_product_list(df):
             st.session_state.active_tab = "list"  # Assicurati di rimanere nella tab lista prodotti
             st.rerun()
     
-    with col2:
-        # Inizializza lo stato per il dialog di conferma se non esiste
-        if 'show_delete_dialog' not in st.session_state:
-            st.session_state.show_delete_dialog = False
-            st.session_state.delete_product_id = None
-            st.session_state.delete_product_name = None
+    # Per prodotti liquidi, mostra il pulsante di aggiornamento valore
+    if is_liquid_product:
+        with col2:
+            update_liquid_button = st.button(
+                "💰 Aggiorna Valore", 
+                type="primary",
+                use_container_width=True,
+                key="update_liquid_button"
+            )
+            
+            if update_liquid_button and product_id is not None:
+                # Attiva la modalità aggiornamento prodotto liquido
+                st.session_state.update_liquid_mode = True
+                st.session_state.update_liquid_product_id = product_id
+                st.session_state.active_tab = "list"  # Assicurati di rimanere nella tab lista prodotti
+                st.rerun()
         
-        delete_button = st.button(
-            "🗑️ Elimina Patrimonio", 
-            type="secondary", 
-            use_container_width=True,
-            key="delete_button"
-        )
+        # Sposta gli altri pulsanti
+        with col3:
+            # Inizializza lo stato per il dialog di conferma se non esiste
+            if 'show_delete_dialog' not in st.session_state:
+                st.session_state.show_delete_dialog = False
+                st.session_state.delete_product_id = None
+                st.session_state.delete_product_name = None
+            
+            delete_button = st.button(
+                "🗑️ Elimina", 
+                type="secondary", 
+                use_container_width=True,
+                key="delete_button"
+            )
+            
+            # Quando il pulsante viene premuto, mostra il dialog di conferma
+            if delete_button and product_id is not None:
+                st.session_state.show_delete_dialog = True
+                st.session_state.delete_product_id = product_id
+                st.session_state.delete_product_name = product_name
+                st.rerun()  # Ricarica la pagina per mostrare il dialog
         
-        # Quando il pulsante viene premuto, mostra il dialog di conferma
-        if delete_button and product_id is not None:
-            st.session_state.show_delete_dialog = True
-            st.session_state.delete_product_id = product_id
-            st.session_state.delete_product_name = product_name
-            st.rerun()  # Ricarica la pagina per mostrare il dialog
+        with col4:
+            duplicate_button = st.button(
+                "🔄 Duplica", 
+                type="secondary", 
+                use_container_width=True,
+                key="duplicate_button"
+            )
+            
+            if duplicate_button and product_id is not None:
+                # Anziché duplicare direttamente, imposta il prodotto da duplicare 
+                # e passa alla schermata di inserimento/modifica
+                st.session_state.duplicate_product = product_id
+                st.session_state.active_tab = "add"  # Passa alla tab di inserimento prodotto
+                st.rerun()
+    else:
+        # Per prodotti non liquidi, uso il layout standard a 3 colonne
+        with col2:
+            # Inizializza lo stato per il dialog di conferma se non esiste
+            if 'show_delete_dialog' not in st.session_state:
+                st.session_state.show_delete_dialog = False
+                st.session_state.delete_product_id = None
+                st.session_state.delete_product_name = None
+            
+            delete_button = st.button(
+                "🗑️ Elimina Patrimonio", 
+                type="secondary", 
+                use_container_width=True,
+                key="delete_button"
+            )
+            
+            # Quando il pulsante viene premuto, mostra il dialog di conferma
+            if delete_button and product_id is not None:
+                st.session_state.show_delete_dialog = True
+                st.session_state.delete_product_id = product_id
+                st.session_state.delete_product_name = product_name
+                st.rerun()  # Ricarica la pagina per mostrare il dialog
         
-        # Se il dialog è attivo, mostralo
-        if st.session_state.show_delete_dialog:
-            # Crea un container per il messaggio di conferma
-            confirm_container = st.container()
-            with confirm_container:
-                st.warning(f"Sei sicuro di voler eliminare l'elemento di patrimonio '{st.session_state.delete_product_name}'?")
-                
-                # Pulsanti Sì e No affiancati
-                col_yes, col_no = st.columns(2)
-                with col_yes:
-                    if st.button("Sì, elimina", key="confirm_delete_yes", use_container_width=True):
-                        # Esegui l'eliminazione
-                        if delete_product(st.session_state.delete_product_id):
-                            st.session_state.show_success_message = True
-                            st.session_state.success_message = f"✅ Patrimonio '{st.session_state.delete_product_name}' eliminato con successo!"
-                            # Resetta il dialog
-                            st.session_state.show_delete_dialog = False
-                            st.session_state.delete_product_id = None
-                            st.session_state.delete_product_name = None
-                            st.session_state.active_tab = "list"
-                            st.rerun()
-                        else:
-                            st.error(f"Errore durante l'eliminazione del prodotto")
-                
-                with col_no:
-                    if st.button("No, annulla", key="confirm_delete_no", use_container_width=True):
-                        # Annulla e chiudi il dialog
+        with col3:
+            duplicate_button = st.button(
+                "🔄 Duplica Patrimonio", 
+                type="secondary", 
+                use_container_width=True,
+                key="duplicate_button"
+            )
+            
+            if duplicate_button and product_id is not None:
+                # Anziché duplicare direttamente, imposta il prodotto da duplicare 
+                # e passa alla schermata di inserimento/modifica
+                st.session_state.duplicate_product = product_id
+                st.session_state.active_tab = "add"  # Passa alla tab di inserimento prodotto
+                st.rerun()
+    
+    # Se il dialog di conferma eliminazione è attivo, mostralo
+    if st.session_state.show_delete_dialog:
+        # Crea un container per il messaggio di conferma
+        confirm_container = st.container()
+        with confirm_container:
+            st.warning(f"Sei sicuro di voler eliminare l'elemento di patrimonio '{st.session_state.delete_product_name}'?")
+            
+            # Pulsanti Sì e No affiancati
+            col_yes, col_no = st.columns(2)
+            with col_yes:
+                if st.button("Sì, elimina", key="confirm_delete_yes", use_container_width=True):
+                    # Esegui l'eliminazione
+                    if delete_product(st.session_state.delete_product_id):
+                        st.session_state.show_success_message = True
+                        st.session_state.success_message = f"✅ Patrimonio '{st.session_state.delete_product_name}' eliminato con successo!"
+                        # Resetta il dialog
                         st.session_state.show_delete_dialog = False
                         st.session_state.delete_product_id = None
                         st.session_state.delete_product_name = None
+                        st.session_state.active_tab = "list"
                         st.rerun()
-    
-    with col3:
-        duplicate_button = st.button(
-            "🔄 Duplica Patrimonio", 
-            type="secondary", 
-            use_container_width=True,
-            key="duplicate_button"
-        )
-        
-        if duplicate_button and product_id is not None:
-            # Anziché duplicare direttamente, imposta il prodotto da duplicare 
-            # e passa alla schermata di inserimento/modifica
-            st.session_state.duplicate_product = product_id
-            st.session_state.active_tab = "add"  # Passa alla tab di inserimento prodotto
-            st.rerun()
+                    else:
+                        st.error(f"Errore durante l'eliminazione del prodotto")
+            
+            with col_no:
+                if st.button("No, annulla", key="confirm_delete_no", use_container_width=True):
+                    # Annulla e chiudi il dialog
+                    st.session_state.show_delete_dialog = False
+                    st.session_state.delete_product_id = None
+                    st.session_state.delete_product_name = None
+                    st.rerun()
     
     # Separatore
     st.divider()
