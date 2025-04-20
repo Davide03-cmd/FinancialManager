@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import os
+import base64
+import io
 from PIL import Image
 from components.dashboard import render_dashboard
 from components.product_form import render_product_form
@@ -10,6 +12,9 @@ from components.user_management import render_user_management
 from utils.data_manager import load_data
 from utils.auth import is_logged_in, is_admin, logout
 
+# Importazione del logo incorporato
+from app_logo import LOGO_BASE64
+
 # Set page configuration
 st.set_page_config(
     page_title="My $av€ DC",
@@ -17,6 +22,23 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"  # Cambiato a expanded per mostrare la sidebar del login
 )
+
+# Funzione per caricare il logo
+def get_logo():
+    """
+    Restituisce il logo come immagine PIL, usando la versione base64 incorporata
+    """
+    try:
+        # Prima prova a caricare il file dal percorso
+        return Image.open('assets/MySaveDCLogo.png')
+    except Exception:
+        try:
+            # Se non funziona, usa la versione base64
+            binary_data = base64.b64decode(LOGO_BASE64)
+            return Image.open(io.BytesIO(binary_data))
+        except Exception:
+            # Se anche questo fallisce, restituisci None
+            return None
 
 # Ottimizza layout con spazi adeguati - approccio più semplice
 st.markdown("""
@@ -99,11 +121,10 @@ if user_logged_in:
     
     # Logo nella prima colonna
     with row1_cols[0]:
-        try:
-            logo = Image.open('assets/logo.png')
+        logo = get_logo()
+        if logo:
             st.image(logo, use_container_width=True)
-        except Exception as e:
-            st.write(f"Logo non trovato: {e}")
+        else:
             st.title("My $av€ DC")
     
     # Informazioni utente nella seconda colonna
@@ -226,10 +247,10 @@ else:
     st.markdown("<div style='margin-top: 70px;'></div>", unsafe_allow_html=True)
     
     # Mostra il logo
-    try:
-        logo = Image.open('assets/logo.png')
+    logo = get_logo()
+    if logo:
         st.image(logo, width=300)
-    except Exception as e:
+    else:
         st.title("My $av€ DC")
     
     st.header("👋 Benvenuto nella tua app personale di gestione finanziaria!")
