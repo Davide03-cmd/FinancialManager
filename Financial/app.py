@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
 import os
-import base64
-import io
 from PIL import Image
 from components.dashboard import render_dashboard
 from components.product_form import render_product_form
@@ -11,34 +9,6 @@ from components.login import render_login_page
 from components.user_management import render_user_management
 from utils.data_manager import load_data
 from utils.auth import is_logged_in, is_admin, logout
-
-# Importazione condizionale per il logo in base64
-try:
-    from logo_base64 import get_logo_as_base64
-except ImportError:
-    # Se il modulo non esiste, creiamo una funzione vuota
-    def get_logo_as_base64():
-        return None
-
-def get_logo_image():
-    """
-    Carica il logo dell'app, provando prima dal file e poi dalla versione base64
-    """
-    try:
-        # Prima prova a caricare il file
-        return Image.open('assets/MySaveDCLogo.png')
-    except Exception:
-        # Se fallisce, prova a usare la versione base64
-        logo_base64 = get_logo_as_base64()
-        if logo_base64:
-            try:
-                # Decodifica il base64 e carica l'immagine
-                binary_data = base64.b64decode(logo_base64)
-                return Image.open(io.BytesIO(binary_data))
-            except Exception:
-                # Se fallisce anche questo, ritorna None
-                return None
-        return None
 
 # Set page configuration
 st.set_page_config(
@@ -129,10 +99,11 @@ if user_logged_in:
     
     # Logo nella prima colonna
     with row1_cols[0]:
-        logo = get_logo_image()
-        if logo:
+        try:
+            logo = Image.open('assets/MySaveDCLogo.png')
             st.image(logo, use_container_width=True)
-        else:
+        except Exception as e:
+            st.write(f"Logo non trovato: {e}")
             st.title("My $av€ DC")
     
     # Informazioni utente nella seconda colonna
@@ -255,10 +226,10 @@ else:
     st.markdown("<div style='margin-top: 70px;'></div>", unsafe_allow_html=True)
     
     # Mostra il logo
-    logo = get_logo_image()
-    if logo:
+    try:
+        logo = Image.open('assets/MySaveDCLogo.png')
         st.image(logo, width=300)
-    else:
+    except Exception as e:
         st.title("My $av€ DC")
     
     st.header("👋 Benvenuto nella tua app personale di gestione finanziaria!")
